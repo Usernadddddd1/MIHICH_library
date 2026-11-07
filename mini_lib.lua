@@ -1,6 +1,7 @@
 -- Mini_lib — библиотека меню (11 элементов)
 -- Кастомизация в стиле CSS, без скруглений и print
 -- Slider / Checkbox / Button / TextInput — без встроенного имени
+-- Слайдер без ползунка (квадратика) — тянется за дорожку
 
 local Mini_lib = {}
 Mini_lib.__index = Mini_lib
@@ -45,14 +46,11 @@ local DEFAULT_THEME = {
     keyFont         = Enum.Font.GothamBold,
     keySize         = 13,
 
-    -- slider
+    -- slider (без knob)
     sliderTrack      = Color3.fromRGB(60, 60, 70),
     sliderFill       = Color3.fromRGB(100, 160, 255),
-    sliderKnob       = Color3.fromRGB(230, 230, 230),
-    sliderKnobHover  = Color3.fromRGB(255, 255, 255),
     sliderValueText  = Color3.fromRGB(150, 200, 255),
     sliderTrackH     = 6,
-    sliderKnobD      = 14,
 
     -- checkbox
     checkboxOff       = Color3.fromRGB(50, 50, 60),
@@ -140,7 +138,7 @@ local function createBorder(parent, size, pos, theme, movable)
     title.TextSize = theme.titleSize
     title.Parent = titleBar
 
-    -- drag area (перетаскивание за заголовок)
+    -- drag area
     local dragArea = Instance.new("TextButton")
     dragArea.Name = "DragArea"
     dragArea.Size = UDim2.new(1, -60, 1, 0)
@@ -327,7 +325,7 @@ local function createKey(parent, size, pos, opts, theme)
     return key
 end
 
--- slider (без встроенного имени)
+-- slider (без ползунка, тянется за дорожку)
 local function createSlider(parent, size, pos, opts, theme)
     opts = opts or {}
     local minVal = opts.min or 0
@@ -370,16 +368,6 @@ local function createSlider(parent, size, pos, opts, theme)
     fill.BorderSizePixel = 0
     fill.Parent = track
 
-    local knobD = opts.knobD or theme.sliderKnobD
-    local knob = Instance.new("Frame")
-    knob.Size = UDim2.new(0, knobD, 0, knobD)
-    -- ФИКС: правый край fill (1, -knobD/2), а не левый (0, -knobD/2)
-    knob.Position = UDim2.new(1, -knobD / 2, 0.5, -knobD / 2)
-    knob.BackgroundColor3 = opts.knobColor or theme.sliderKnob
-    knob.BorderSizePixel = 0
-    knob.ZIndex = 2
-    knob.Parent = fill
-
     local dragging = false
 
     local function quantize(v)
@@ -407,11 +395,6 @@ local function createSlider(parent, size, pos, opts, theme)
             updateFromInput(input)
         end
     end)
-    knob.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-        end
-    end)
     game:GetService("UserInputService").InputChanged:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
             updateFromInput(input)
@@ -423,20 +406,12 @@ local function createSlider(parent, size, pos, opts, theme)
         end
     end)
 
-    knob.MouseEnter:Connect(function()
-        if not dragging then knob.BackgroundColor3 = opts.knobHover or theme.sliderKnobHover end
-    end)
-    knob.MouseLeave:Connect(function()
-        if not dragging then knob.BackgroundColor3 = opts.knobColor or theme.sliderKnob end
-    end)
-
     setValue(opts.default or minVal)
 
     local methods = {}
     function methods:SetValue(v) setValue(v) end
     function methods:SetFillColor(c) fill.BackgroundColor3 = c end
     function methods:SetTrackColor(c) track.BackgroundColor3 = c end
-    function methods:SetKnobColor(c) knob.BackgroundColor3 = c end
     function methods:Destroy() sliderFrame:Destroy() end
     return sliderFrame, methods
 end
@@ -683,7 +658,6 @@ function Mini_lib:SetTheme(themeOverride)
     self.Theme = merge(self.Theme, themeOverride)
 end
 
--- включить/выключить перетаскивание
 function Mini_lib:SetMovable(v)
     if self.Border and self.Border.DragArea then
         self.Border.DragArea.Visible = v and true or false
