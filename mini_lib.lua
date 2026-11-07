@@ -1,8 +1,11 @@
+-- Mini_lib — библиотека меню (11 элементов)
+-- Кастомизация в стиле CSS, без скруглений и print
+-- Slider / Checkbox / Button / TextInput — без встроенного имени
 
 local Mini_lib = {}
 Mini_lib.__index = Mini_lib
 
--- тема по умолчанию 
+-- тема по умолчанию (как css-переменные)
 local DEFAULT_THEME = {
     -- окно
     windowBg        = Color3.fromRGB(30, 30, 35),
@@ -102,8 +105,8 @@ local function makeGui()
     return gui
 end
 
--- border + titlebar
-local function createBorder(parent, size, pos, theme)
+-- border + titlebar + drag area
+local function createBorder(parent, size, pos, theme, movable)
     local border = Instance.new("Frame")
     border.Name = "Border"
     border.Size = size
@@ -137,6 +140,47 @@ local function createBorder(parent, size, pos, theme)
     title.TextSize = theme.titleSize
     title.Parent = titleBar
 
+    -- drag area (перетаскивание за заголовок)
+    local dragArea = Instance.new("TextButton")
+    dragArea.Name = "DragArea"
+    dragArea.Size = UDim2.new(1, -60, 1, 0)
+    dragArea.Position = UDim2.new(0, 0, 0, 0)
+    dragArea.BackgroundTransparency = 1
+    dragArea.Text = ""
+    dragArea.AutoButtonColor = false
+    dragArea.Visible = movable ~= false
+    dragArea.ZIndex = 1
+    dragArea.Parent = titleBar
+
+    local dragging = false
+    local dragStart, startPos
+
+    dragArea.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = border.Position
+        end
+    end)
+
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if dragging and dragArea.Visible
+           and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            border.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    game:GetService("UserInputService").InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    border.DragArea = dragArea
     return border, titleBar
 end
 
@@ -171,7 +215,7 @@ local function createLabel(parent, text, size, pos, opts, theme)
     return label
 end
 
--- button
+-- button (без текста)
 local function createButton(parent, size, pos, opts, theme)
     opts = opts or {}
     local btn = Instance.new("TextButton")
@@ -283,7 +327,7 @@ local function createKey(parent, size, pos, opts, theme)
     return key
 end
 
--- slider
+-- slider (без встроенного имени)
 local function createSlider(parent, size, pos, opts, theme)
     opts = opts or {}
     local minVal = opts.min or 0
@@ -329,7 +373,8 @@ local function createSlider(parent, size, pos, opts, theme)
     local knobD = opts.knobD or theme.sliderKnobD
     local knob = Instance.new("Frame")
     knob.Size = UDim2.new(0, knobD, 0, knobD)
-    knob.Position = UDim2.new(0, -knobD / 2, 0.5, -knobD / 2)
+    -- ФИКС: правый край fill (1, -knobD/2), а не левый (0, -knobD/2)
+    knob.Position = UDim2.new(1, -knobD / 2, 0.5, -knobD / 2)
     knob.BackgroundColor3 = opts.knobColor or theme.sliderKnob
     knob.BorderSizePixel = 0
     knob.ZIndex = 2
@@ -396,7 +441,7 @@ local function createSlider(parent, size, pos, opts, theme)
     return sliderFrame, methods
 end
 
--- checkbox 
+-- checkbox (без текста, со свечением)
 local function createCheckbox(parent, size, pos, opts, theme)
     opts = opts or {}
     local boxSize = opts.size or theme.checkboxSize
@@ -490,6 +535,7 @@ local function addWindowControls(titleBar, border, gui, theme)
     minBtn.Font = Enum.Font.GothamBold
     minBtn.TextSize = 14
     minBtn.AutoButtonColor = false
+    minBtn.ZIndex = 2
     minBtn.Parent = titleBar
 
     local closeBtn = Instance.new("TextButton")
@@ -503,6 +549,7 @@ local function addWindowControls(titleBar, border, gui, theme)
     closeBtn.Font = Enum.Font.GothamBold
     closeBtn.TextSize = 13
     closeBtn.AutoButtonColor = false
+    closeBtn.ZIndex = 2
     closeBtn.Parent = titleBar
 
     local minimized = false
@@ -616,7 +663,7 @@ end
 
 -- api
 
-function Mini_lib.new(title, size, pos, themeOverride)
+function Mini_lib.new(title, size, pos, themeOverride, movable)
     local self = setmetatable({}, Mini_lib)
     self.Theme = merge(DEFAULT_THEME, themeOverride)
     self.Gui = makeGui()
@@ -624,7 +671,8 @@ function Mini_lib.new(title, size, pos, themeOverride)
         self.Gui,
         size or UDim2.new(0, 320, 0, 440),
         pos or UDim2.new(0, 50, 0, 50),
-        self.Theme
+        self.Theme,
+        movable
     )
     self.TitleBar.Title.Text = title or "Mini_lib"
     addWindowControls(self.TitleBar, self.Border, self.Gui, self.Theme)
@@ -633,6 +681,13 @@ end
 
 function Mini_lib:SetTheme(themeOverride)
     self.Theme = merge(self.Theme, themeOverride)
+end
+
+-- включить/выключить перетаскивание
+function Mini_lib:SetMovable(v)
+    if self.Border and self.Border.DragArea then
+        self.Border.DragArea.Visible = v and true or false
+    end
 end
 
 function Mini_lib:Filler(size, pos, color)
