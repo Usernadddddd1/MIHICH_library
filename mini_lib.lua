@@ -1,8 +1,5 @@
 -- Mini_lib — библиотека меню (11 элементов)
--- Кастомизация в стиле CSS, без print
--- Slider / Checkbox / Button / TextInput — без встроенного имени
--- Слайдер без ползунка (квадратика) — тянется за дорожку
--- Закругления: theme.radius (глобально) или opts.radius (по элементу)
+-- Без print. Slider без ползунка. Отдельные радиусы для каждого элемента.
 -- Слои: AddLayer / SetLayer / GetLayer
 
 local Mini_lib = {}
@@ -10,7 +7,18 @@ Mini_lib.__index = Mini_lib
 
 -- тема по умолчанию
 local DEFAULT_THEME = {
-    radius          = 0,  -- закругления (0 = без)
+    -- закругления (0 = без). Каждое отвечает за свой элемент.
+    windowRadius    = 0,   -- само окно (border)
+    fillerRadius    = 0,
+    buttonRadius    = 0,
+    keyRadius       = 0,
+    sliderRadius    = 0,   -- дорожка слайдера
+    checkboxRadius  = 0,
+    inputRadius     = 0,
+    pictureRadius   = 0,
+    labelRadius     = 0,   -- работает только если задан opts.bg у Label
+    minBtnRadius    = 0,
+    closeBtnRadius  = 0,
 
     -- окно
     windowBg        = Color3.fromRGB(30, 30, 35),
@@ -87,7 +95,6 @@ local DEFAULT_THEME = {
     closeBtnText    = Color3.fromRGB(255, 230, 230),
 }
 
--- слияние темы
 local function merge(base, override)
     local out = {}
     for k, v in pairs(base) do out[k] = v end
@@ -97,7 +104,6 @@ local function merge(base, override)
     return out
 end
 
--- создание gui
 local function makeGui()
     local gui = Instance.new("ScreenGui")
     gui.Name = "Mini_libGui"
@@ -107,7 +113,12 @@ local function makeGui()
     return gui
 end
 
--- применить закругление если radius > 0
+-- выбрать радиус: opts.radius переопределяет theme-радиус
+local function pickRadius(optsRadius, themeRadius)
+    if optsRadius ~= nil then return optsRadius end
+    return themeRadius or 0
+end
+
 local function applyCorner(instance, radius)
     if radius and radius > 0 then
         local c = Instance.new("UICorner")
@@ -128,8 +139,7 @@ local function createBorder(parent, size, pos, theme, movable)
     border.BorderSizePixel = 0
     border.ClipsDescendants = true
     border.Parent = parent
-
-    applyCorner(border, theme.radius)
+    applyCorner(border, theme.windowRadius)
 
     local stroke = Instance.new("UIStroke")
     stroke.Color = theme.windowBorder
@@ -210,18 +220,17 @@ local function createFiller(parent, size, pos, color, opts, theme)
     filler.BackgroundColor3 = color or theme.fillerBg
     filler.BorderSizePixel = 0
     filler.Parent = parent
-    applyCorner(filler, opts.radius or theme.radius)
+    applyCorner(filler, pickRadius(opts.radius, theme.fillerRadius))
     return filler
 end
 
--- label
+-- label (теперь с опциональным фоном и скруглением)
 local function createLabel(parent, text, size, pos, opts, theme)
     opts = opts or {}
     local label = Instance.new("TextLabel")
     label.Name = "Label"
     label.Size = size
     label.Position = pos
-    label.BackgroundTransparency = 1
     label.Text = text or ""
     label.TextColor3 = opts.color or theme.textColor
     label.Font = opts.font or theme.textFont
@@ -229,7 +238,22 @@ local function createLabel(parent, text, size, pos, opts, theme)
     label.TextXAlignment = opts.align or Enum.TextXAlignment.Left
     label.TextYAlignment = opts.valign or Enum.TextYAlignment.Center
     if opts.wrap then label.TextWrapped = true end
+    label.BorderSizePixel = 0
     label.Parent = parent
+
+    if opts.bg then
+        label.BackgroundTransparency = 0
+        label.BackgroundColor3 = opts.bg
+        applyCorner(label, pickRadius(opts.radius, theme.labelRadius))
+        if opts.paddingX then
+            local pad = Instance.new("UIPadding")
+            pad.PaddingLeft = UDim.new(0, opts.paddingX)
+            pad.PaddingRight = UDim.new(0, opts.paddingX)
+            pad.Parent = label
+        end
+    else
+        label.BackgroundTransparency = 1
+    end
     return label
 end
 
@@ -245,7 +269,7 @@ local function createButton(parent, size, pos, opts, theme)
     btn.Text = ""
     btn.AutoButtonColor = false
     btn.Parent = parent
-    applyCorner(btn, opts.radius or theme.radius)
+    applyCorner(btn, pickRadius(opts.radius, theme.buttonRadius))
 
     local stroke = Instance.new("UIStroke")
     stroke.Color = opts.border or theme.buttonBorder
@@ -309,7 +333,7 @@ local function createKey(parent, size, pos, opts, theme)
     key.TextSize = opts.textSize or theme.keySize
     key.AutoButtonColor = false
     key.Parent = parent
-    applyCorner(key, opts.radius or theme.radius)
+    applyCorner(key, pickRadius(opts.radius, theme.keyRadius))
 
     local stroke = Instance.new("UIStroke")
     stroke.Color = opts.border or theme.keyBorder
@@ -384,9 +408,9 @@ local function createSlider(parent, size, pos, opts, theme)
     track.BorderSizePixel = 0
     track.Parent = sliderFrame
 
-    local trackRadius = opts.radius or theme.radius
-    if trackRadius and trackRadius > 0 then
-        applyCorner(track, trackRadius)
+    local sliderR = pickRadius(opts.radius, theme.sliderRadius)
+    if sliderR and sliderR > 0 then
+        applyCorner(track, sliderR)
         track.ClipsDescendants = true
     end
 
@@ -464,7 +488,7 @@ local function createCheckbox(parent, size, pos, opts, theme)
     box.BackgroundColor3 = opts.offColor or theme.checkboxOff
     box.BorderSizePixel = 0
     box.Parent = container
-    applyCorner(box, opts.radius or theme.radius)
+    applyCorner(box, pickRadius(opts.radius, theme.checkboxRadius))
 
     local glow = Instance.new("UIStroke")
     glow.Color = opts.glowColor or theme.checkboxGlow
@@ -511,7 +535,7 @@ local function createCheckbox(parent, size, pos, opts, theme)
 end
 
 -- picture
-local function createPicture(parent, imageId, size, pos, opts)
+local function createPicture(parent, imageId, size, pos, opts, theme)
     opts = opts or {}
     local img = Instance.new("ImageLabel")
     img.Name = "Picture"
@@ -523,7 +547,11 @@ local function createPicture(parent, imageId, size, pos, opts)
     img.ImageColor3 = opts.tint or Color3.fromRGB(255, 255, 255)
     img.ScaleType = opts.scaleType or Enum.ScaleType.Fit
     img.Parent = parent
-    if opts.radius then applyCorner(img, opts.radius) end
+    local r = pickRadius(opts.radius, theme.pictureRadius)
+    if r and r > 0 then
+        applyCorner(img, r)
+        img.ClipsDescendants = true
+    end
     return img
 end
 
@@ -542,7 +570,7 @@ local function addWindowControls(menu, titleBar, border, gui, theme)
     minBtn.AutoButtonColor = false
     minBtn.ZIndex = 3
     minBtn.Parent = titleBar
-    applyCorner(minBtn, theme.radius)
+    applyCorner(minBtn, theme.minBtnRadius)
 
     local closeBtn = Instance.new("TextButton")
     closeBtn.Name = "Close"
@@ -557,7 +585,7 @@ local function addWindowControls(menu, titleBar, border, gui, theme)
     closeBtn.AutoButtonColor = false
     closeBtn.ZIndex = 3
     closeBtn.Parent = titleBar
-    applyCorner(closeBtn, theme.radius)
+    applyCorner(closeBtn, theme.closeBtnRadius)
 
     local minimized = false
     local originalSize = border.Size
@@ -611,7 +639,7 @@ local function createTextInput(parent, size, pos, opts, theme)
     box.MultiLine = false
     box.AutoButtonColor = false
     box.Parent = parent
-    applyCorner(box, opts.radius or theme.radius)
+    applyCorner(box, pickRadius(opts.radius, theme.inputRadius))
 
     local paddingX = opts.paddingX or theme.inputPaddingX
     local padding = Instance.new("UIPadding")
@@ -688,9 +716,7 @@ function Mini_lib.new(title, size, pos, themeOverride, movable)
     )
     self.TitleBar.Title.Text = title or "Mini_lib"
 
-    -- дефолтный слой
     self:AddLayer("Main")
-
     addWindowControls(self, self.TitleBar, self.Border, self.Gui, self.Theme)
     return self
 end
@@ -745,8 +771,6 @@ function Mini_lib:GetLayer(name)
     return self.Layers[name]
 end
 
--- получить родителя с учётом opts.layer
-
 local function resolveParent(self, opts)
     opts = opts or {}
     if opts.layer then
@@ -792,7 +816,7 @@ end
 
 function Mini_lib:Picture(imageId, size, pos, opts)
     opts = opts or {}
-    return createPicture(resolveParent(self, opts), imageId, size, pos, opts)
+    return createPicture(resolveParent(self, opts), imageId, size, pos, opts, self.Theme)
 end
 
 function Mini_lib:TextInput(size, pos, opts)
