@@ -1,13 +1,17 @@
 -- Mini_lib — библиотека меню (11 элементов)
--- Кастомизация в стиле CSS, без скруглений и print
+-- Кастомизация в стиле CSS, без print
 -- Slider / Checkbox / Button / TextInput — без встроенного имени
 -- Слайдер без ползунка (квадратика) — тянется за дорожку
+-- Закругления: theme.radius (глобально) или opts.radius (по элементу)
+-- Слои: AddLayer / SetLayer / GetLayer
 
 local Mini_lib = {}
 Mini_lib.__index = Mini_lib
 
--- тема по умолчанию (как css-переменные)
+-- тема по умолчанию
 local DEFAULT_THEME = {
+    radius          = 0,  -- закругления (0 = без)
+
     -- окно
     windowBg        = Color3.fromRGB(30, 30, 35),
     windowBorder    = Color3.fromRGB(80, 80, 90),
@@ -103,6 +107,17 @@ local function makeGui()
     return gui
 end
 
+-- применить закругление если radius > 0
+local function applyCorner(instance, radius)
+    if radius and radius > 0 then
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(0, radius)
+        c.Parent = instance
+        return c
+    end
+    return nil
+end
+
 -- border + titlebar + drag area
 local function createBorder(parent, size, pos, theme, movable)
     local border = Instance.new("Frame")
@@ -114,6 +129,8 @@ local function createBorder(parent, size, pos, theme, movable)
     border.ClipsDescendants = true
     border.Parent = parent
 
+    applyCorner(border, theme.radius)
+
     local stroke = Instance.new("UIStroke")
     stroke.Color = theme.windowBorder
     stroke.Thickness = theme.windowBorderW
@@ -124,6 +141,7 @@ local function createBorder(parent, size, pos, theme, movable)
     titleBar.Size = UDim2.new(1, 0, 0, 30)
     titleBar.BackgroundColor3 = theme.titleBarBg
     titleBar.BorderSizePixel = 0
+    titleBar.ZIndex = 2
     titleBar.Parent = border
 
     local title = Instance.new("TextLabel")
@@ -136,9 +154,9 @@ local function createBorder(parent, size, pos, theme, movable)
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Font = theme.titleFont
     title.TextSize = theme.titleSize
+    title.ZIndex = 3
     title.Parent = titleBar
 
-    -- drag area
     local dragArea = Instance.new("TextButton")
     dragArea.Name = "DragArea"
     dragArea.Size = UDim2.new(1, -60, 1, 0)
@@ -183,7 +201,8 @@ local function createBorder(parent, size, pos, theme, movable)
 end
 
 -- filler
-local function createFiller(parent, size, pos, color, theme)
+local function createFiller(parent, size, pos, color, opts, theme)
+    opts = opts or {}
     local filler = Instance.new("Frame")
     filler.Name = "Filler"
     filler.Size = size
@@ -191,6 +210,7 @@ local function createFiller(parent, size, pos, color, theme)
     filler.BackgroundColor3 = color or theme.fillerBg
     filler.BorderSizePixel = 0
     filler.Parent = parent
+    applyCorner(filler, opts.radius or theme.radius)
     return filler
 end
 
@@ -225,6 +245,7 @@ local function createButton(parent, size, pos, opts, theme)
     btn.Text = ""
     btn.AutoButtonColor = false
     btn.Parent = parent
+    applyCorner(btn, opts.radius or theme.radius)
 
     local stroke = Instance.new("UIStroke")
     stroke.Color = opts.border or theme.buttonBorder
@@ -288,6 +309,7 @@ local function createKey(parent, size, pos, opts, theme)
     key.TextSize = opts.textSize or theme.keySize
     key.AutoButtonColor = false
     key.Parent = parent
+    applyCorner(key, opts.radius or theme.radius)
 
     local stroke = Instance.new("UIStroke")
     stroke.Color = opts.border or theme.keyBorder
@@ -361,6 +383,12 @@ local function createSlider(parent, size, pos, opts, theme)
     track.BackgroundColor3 = opts.trackColor or theme.sliderTrack
     track.BorderSizePixel = 0
     track.Parent = sliderFrame
+
+    local trackRadius = opts.radius or theme.radius
+    if trackRadius and trackRadius > 0 then
+        applyCorner(track, trackRadius)
+        track.ClipsDescendants = true
+    end
 
     local fill = Instance.new("Frame")
     fill.Size = UDim2.new(0, 0, 1, 0)
@@ -436,6 +464,7 @@ local function createCheckbox(parent, size, pos, opts, theme)
     box.BackgroundColor3 = opts.offColor or theme.checkboxOff
     box.BorderSizePixel = 0
     box.Parent = container
+    applyCorner(box, opts.radius or theme.radius)
 
     local glow = Instance.new("UIStroke")
     glow.Color = opts.glowColor or theme.checkboxGlow
@@ -494,11 +523,12 @@ local function createPicture(parent, imageId, size, pos, opts)
     img.ImageColor3 = opts.tint or Color3.fromRGB(255, 255, 255)
     img.ScaleType = opts.scaleType or Enum.ScaleType.Fit
     img.Parent = parent
+    if opts.radius then applyCorner(img, opts.radius) end
     return img
 end
 
 -- minimize + close
-local function addWindowControls(titleBar, border, gui, theme)
+local function addWindowControls(menu, titleBar, border, gui, theme)
     local minBtn = Instance.new("TextButton")
     minBtn.Name = "Minimize"
     minBtn.Size = UDim2.new(0, 22, 0, 22)
@@ -510,8 +540,9 @@ local function addWindowControls(titleBar, border, gui, theme)
     minBtn.Font = Enum.Font.GothamBold
     minBtn.TextSize = 14
     minBtn.AutoButtonColor = false
-    minBtn.ZIndex = 2
+    minBtn.ZIndex = 3
     minBtn.Parent = titleBar
+    applyCorner(minBtn, theme.radius)
 
     local closeBtn = Instance.new("TextButton")
     closeBtn.Name = "Close"
@@ -524,27 +555,27 @@ local function addWindowControls(titleBar, border, gui, theme)
     closeBtn.Font = Enum.Font.GothamBold
     closeBtn.TextSize = 13
     closeBtn.AutoButtonColor = false
-    closeBtn.ZIndex = 2
+    closeBtn.ZIndex = 3
     closeBtn.Parent = titleBar
+    applyCorner(closeBtn, theme.radius)
 
     local minimized = false
     local originalSize = border.Size
-    local contentFrames = {}
-
-    for _, child in ipairs(border:GetChildren()) do
-        if child ~= titleBar and child:IsA("GuiObject") then
-            table.insert(contentFrames, child)
-        end
-    end
+    local minimizedLayer = nil
 
     minBtn.MouseButton1Click:Connect(function()
         minimized = not minimized
         if minimized then
+            minimizedLayer = menu.CurrentLayerName
+            for _, layer in pairs(menu.Layers) do
+                layer.Visible = false
+            end
             originalSize = border.Size
-            for _, f in ipairs(contentFrames) do f.Visible = false end
             border.Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset, 0, 30)
         else
-            for _, f in ipairs(contentFrames) do f.Visible = true end
+            if minimizedLayer then
+                menu:SetLayer(minimizedLayer)
+            end
             border.Size = originalSize
         end
     end)
@@ -580,6 +611,7 @@ local function createTextInput(parent, size, pos, opts, theme)
     box.MultiLine = false
     box.AutoButtonColor = false
     box.Parent = parent
+    applyCorner(box, opts.radius or theme.radius)
 
     local paddingX = opts.paddingX or theme.inputPaddingX
     local padding = Instance.new("UIPadding")
@@ -642,6 +674,11 @@ function Mini_lib.new(title, size, pos, themeOverride, movable)
     local self = setmetatable({}, Mini_lib)
     self.Theme = merge(DEFAULT_THEME, themeOverride)
     self.Gui = makeGui()
+    self.Layers = {}
+    self._layerOrder = {}
+    self.CurrentLayer = nil
+    self.CurrentLayerName = nil
+
     self.Border, self.TitleBar = createBorder(
         self.Gui,
         size or UDim2.new(0, 320, 0, 440),
@@ -650,7 +687,11 @@ function Mini_lib.new(title, size, pos, themeOverride, movable)
         movable
     )
     self.TitleBar.Title.Text = title or "Mini_lib"
-    addWindowControls(self.TitleBar, self.Border, self.Gui, self.Theme)
+
+    -- дефолтный слой
+    self:AddLayer("Main")
+
+    addWindowControls(self, self.TitleBar, self.Border, self.Gui, self.Theme)
     return self
 end
 
@@ -664,36 +705,99 @@ function Mini_lib:SetMovable(v)
     end
 end
 
-function Mini_lib:Filler(size, pos, color)
-    return createFiller(self.Border, size, pos, color, self.Theme)
+-- слои
+
+function Mini_lib:AddLayer(name)
+    name = name or ("Layer" .. (#self._layerOrder + 1))
+    if self.Layers[name] then return self.Layers[name] end
+
+    local frame = Instance.new("Frame")
+    frame.Name = "Layer_" .. name
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.Position = UDim2.new(0, 0, 0, 0)
+    frame.BackgroundTransparency = 1
+    frame.Visible = (#self._layerOrder == 0)
+    frame.ZIndex = 1
+    frame.Parent = self.Border
+
+    self.Layers[name] = frame
+    table.insert(self._layerOrder, name)
+
+    if self.CurrentLayer == nil then
+        self.CurrentLayer = frame
+        self.CurrentLayerName = name
+    end
+    return frame
+end
+
+function Mini_lib:SetLayer(name)
+    local target = self.Layers[name]
+    if not target then return false end
+    for layerName, frame in pairs(self.Layers) do
+        frame.Visible = (layerName == name)
+    end
+    self.CurrentLayer = target
+    self.CurrentLayerName = name
+    return true
+end
+
+function Mini_lib:GetLayer(name)
+    return self.Layers[name]
+end
+
+-- получить родителя с учётом opts.layer
+
+local function resolveParent(self, opts)
+    opts = opts or {}
+    if opts.layer then
+        if not self.Layers[opts.layer] then
+            self:AddLayer(opts.layer)
+        end
+        return self.Layers[opts.layer]
+    end
+    return self.CurrentLayer
+end
+
+-- элементы
+
+function Mini_lib:Filler(size, pos, color, opts)
+    opts = opts or {}
+    return createFiller(resolveParent(self, opts), size, pos, color, opts, self.Theme)
 end
 
 function Mini_lib:Label(text, size, pos, opts)
-    return createLabel(self.Border, text, size, pos, opts, self.Theme)
+    opts = opts or {}
+    return createLabel(resolveParent(self, opts), text, size, pos, opts, self.Theme)
 end
 
 function Mini_lib:Button(size, pos, opts)
-    return createButton(self.Border, size, pos, opts, self.Theme)
+    opts = opts or {}
+    return createButton(resolveParent(self, opts), size, pos, opts, self.Theme)
 end
 
 function Mini_lib:Key(size, pos, opts)
-    return createKey(self.Border, size, pos, opts, self.Theme)
+    opts = opts or {}
+    return createKey(resolveParent(self, opts), size, pos, opts, self.Theme)
 end
 
 function Mini_lib:Slider(size, pos, opts)
-    return createSlider(self.Border, size, pos, opts, self.Theme)
+    opts = opts or {}
+    return createSlider(resolveParent(self, opts), size, pos, opts, self.Theme)
 end
 
 function Mini_lib:Checkbox(size, pos, opts)
-    return createCheckbox(self.Border, size, pos, opts, self.Theme)
+    opts = opts or {}
+    return createCheckbox(resolveParent(self, opts), size, pos, opts, self.Theme)
 end
 
 function Mini_lib:Picture(imageId, size, pos, opts)
-    return createPicture(self.Border, imageId, size, pos, opts)
+    opts = opts or {}
+    return createPicture(resolveParent(self, opts), imageId, size, pos, opts)
 end
 
 function Mini_lib:TextInput(size, pos, opts)
-    return createTextInput(self.Border, size, pos, opts, self.Theme)
+    opts = opts or {}
+    return createTextInput(resolveParent(self, opts), size, pos, opts, self.Theme)
 end
 
 function Mini_lib:Destroy()
